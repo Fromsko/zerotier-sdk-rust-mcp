@@ -1,18 +1,21 @@
-use crate::{client::Client, central::Central};
+use crate::{central::Central, client::Client};
 use rmcp::{
-    ServerHandler,
-    model::ServerInfo,
+    handler::server::{router::tool::ToolRouter, tool::Parameters},
+    model::{ProtocolVersion, ServerCapabilities, ServerInfo},
     schemars::{self, JsonSchema},
-    tool,
-    ServiceExt,
+    tool, tool_handler, tool_router,
+    transport::stdio,
+    ServerHandler, ServiceExt,
 };
 use serde::Deserialize;
+use std::future::Future;
 
 /// ZeroTier MCP 服务
 #[derive(Clone)]
 pub struct McpServer {
     local_client: Client,
     central_client: Option<Central>,
+    tool_router: ToolRouter<Self>,
 }
 
 impl McpServer {
@@ -21,6 +24,7 @@ impl McpServer {
         Self {
             local_client: Client::new(),
             central_client: None,
+            tool_router: Self::tool_router(),
         }
     }
 
@@ -44,9 +48,7 @@ impl McpServer {
 
     /// 启动 stdio 服务
     pub async fn serve_stdio(self) -> Result<(), Box<dyn std::error::Error>> {
-        use rmcp::transport::stdio;
-        let transport = stdio();
-        let server = self.serve(transport).await?;
+        let server = self.serve(stdio()).await?;
         server.waiting().await?;
         Ok(())
     }
@@ -64,25 +66,25 @@ impl Default for McpServer {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct NetworkIdParam {
-    /// 网络 ID（16位十六进制）
+    #[schemars(description = "网络 ID（16位十六进制）")]
     pub network_id: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct MemberParam {
-    /// 网络 ID
+    #[schemars(description = "网络 ID")]
     pub network_id: String,
-    /// 成员 ID
+    #[schemars(description = "成员 ID")]
     pub member_id: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct AuthorizeWithIpParam {
-    /// 网络 ID
+    #[schemars(description = "网络 ID")]
     pub network_id: String,
-    /// 成员 ID
+    #[schemars(description = "成员 ID")]
     pub member_id: String,
-    /// 自定义 IP 地址（如 "10.147.20.100"）
+    #[schemars(description = "自定义 IP 地址（如 10.147.20.100）")]
     pub ip_address: String,
 }
 
@@ -90,7 +92,7 @@ pub struct AuthorizeWithIpParam {
 // 工具实现
 // ============================================
 
-#[tool(tool_box)]
+#[tool_router]
 impl McpServer {
     /// 获取本地 ZeroTier 节点状态
     #[tool(description = "获取本地 ZeroTier 节点状态")]
@@ -128,7 +130,7 @@ impl McpServer {
 
     /// 加入 ZeroTier 网络
     #[tool(description = "加入 ZeroTier 网络")]
-    async fn zt_join(&self, #[tool(aggr)] param: NetworkIdParam) -> String {
+    async fn zt_join(&self, Parameters(param): Parameters<NetworkIdParam>) -> String {
         match self.local_client.networks().join(&param.network_id).await {
             Ok(network) => format!("已加入网络: {} ({})", network.id, network.name),
             Err(e) => format!("加入网络失败: {}", e),
@@ -137,7 +139,7 @@ impl McpServer {
 
     /// 离开 ZeroTier 网络
     #[tool(description = "离开 ZeroTier 网络")]
-    async fn zt_leave(&self, #[tool(aggr)] param: NetworkIdParam) -> String {
+    async fn zt_leave(&self, Parameters(param): Parameters<NetworkIdParam>) -> String {
         match self.local_client.networks().leave(&param.network_id).await {
             Ok(()) => format!("已离开网络: {}", param.network_id),
             Err(e) => format!("离开网络失败: {}", e),
@@ -179,7 +181,11 @@ impl McpServer {
                 }
                 let mut result = String::from("云端网络:\n");
                 for n in networks {
-                    let name = n.config.as_ref().map(|c| c.name.as_str()).unwrap_or("未命名");
+                    let name = n
+                        .config
+                        .as_ref()
+                        .map(|c| c.name.as_str())
+                        .unwrap_or("未命名");
                     result.push_str(&format!("\n[{}] {}\n", n.id, name));
                     result.push_str(&format!(
                         "  在线: {} / 授权: {} / 总计: {}\n",
@@ -194,7 +200,7 @@ impl McpServer {
 
     /// 列出网络成员
     #[tool(description = "列出网络成员")]
-    async fn zt_central_members(&self, #[tool(aggr)] param: NetworkIdParam) -> String {
+    async fn zt_central_members(&self, Parameters(param): Parameters<NetworkIdParam>) -> String {
         let Some(ref client) = self.central_client else {
             return "未配置 Central API Token".to_string();
         };
@@ -224,12 +230,17 @@ impl McpServer {
 
     /// 授权网络成员
     #[tool(description = "授权网络成员")]
-    async fn zt_central_authorize(&self, #[tool(aggr)] param: MemberParam) -> String {
+    async fn zt_central_authorize(&self, Parameters(param): Parameters<MemberParam>) -> String {
         let Some(ref client) = self.central_client else {
             return "未配置 Central API Token".to_string();
         };
 
-        match client.networks().members(&param.network_id).authorize(&param.member_id).await {
+        match client
+            .networks()
+            .members(&param.network_id)
+            .authorize(&param.member_id)
+            .await
+        {
             Ok(member) => format!("已授权成员: {} ({})", member.node_id, member.name),
             Err(e) => format!("授权失败: {}", e),
         }
@@ -237,9 +248,12 @@ impl McpServer {
 
     /// 授权网络成员并指定 IP 地址
     #[tool(description = "授权网络成员并指定自定义 IP 地址")]
-    async fn zt_central_authorize_with_ip(&self, #[tool(aggr)] param: AuthorizeWithIpParam) -> String {
-        use crate::central::{UpdateMemberRequest, UpdateMemberConfig};
-        
+    async fn zt_central_authorize_with_ip(
+        &self,
+        Parameters(param): Parameters<AuthorizeWithIpParam>,
+    ) -> String {
+        use crate::central::{UpdateMemberConfig, UpdateMemberRequest};
+
         let Some(ref client) = self.central_client else {
             return "未配置 Central API Token".to_string();
         };
@@ -253,12 +267,22 @@ impl McpServer {
             ..Default::default()
         };
 
-        match client.networks().members(&param.network_id).update(&param.member_id, &req).await {
+        match client
+            .networks()
+            .members(&param.network_id)
+            .update(&param.member_id, &req)
+            .await
+        {
             Ok(member) => {
-                let ips = member.config.as_ref()
+                let ips = member
+                    .config
+                    .as_ref()
                     .map(|c| c.ip_assignments.join(", "))
                     .unwrap_or_default();
-                format!("已授权成员: {} ({})\nIP: {}", member.node_id, member.name, ips)
+                format!(
+                    "已授权成员: {} ({})\nIP: {}",
+                    member.node_id, member.name, ips
+                )
             }
             Err(e) => format!("授权失败: {}", e),
         }
@@ -266,23 +290,32 @@ impl McpServer {
 
     /// 取消成员授权
     #[tool(description = "取消成员授权")]
-    async fn zt_central_deauthorize(&self, #[tool(aggr)] param: MemberParam) -> String {
+    async fn zt_central_deauthorize(&self, Parameters(param): Parameters<MemberParam>) -> String {
         let Some(ref client) = self.central_client else {
             return "未配置 Central API Token".to_string();
         };
 
-        match client.networks().members(&param.network_id).deauthorize(&param.member_id).await {
+        match client
+            .networks()
+            .members(&param.network_id)
+            .deauthorize(&param.member_id)
+            .await
+        {
             Ok(member) => format!("已取消授权: {} ({})", member.node_id, member.name),
             Err(e) => format!("取消授权失败: {}", e),
         }
     }
 }
 
-#[tool(tool_box)]
+#[tool_handler]
 impl ServerHandler for McpServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
-            instructions: Some("ZeroTier SDK MCP Server - 管理本地和云端 ZeroTier 网络".into()),
+            protocol_version: ProtocolVersion::V_2025_03_26,
+            instructions: Some(
+                "ZeroTier SDK MCP Server - 管理本地和云端 ZeroTier 网络".to_string(),
+            ),
+            capabilities: ServerCapabilities::builder().enable_tools().build(),
             ..Default::default()
         }
     }
