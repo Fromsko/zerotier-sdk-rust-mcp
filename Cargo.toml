@@ -1,0 +1,30 @@
+[package]
+name = "zerotier-sdk-rust-mcp"
+version = "0.1.0"
+edition = "2021"
+description = "ZeroTier SDK for Rust with MCP support"
+license = "MIT"
+authors = ["fromsko"]
+repository = "https://github.com/fromsko/zerotier-sdk-rust-mcp"
+keywords = ["zerotier", "sdk", "mcp", "vpn", "network"]
+categories = ["network-programming", "api-bindings"]
+
+[lib]
+name = "zerotier_sdk_rust_mcp"
+path = "src/lib.rs"
+
+[[bin]]
+name = "zerotier-mcp"
+path = "src/bin/zerotier-mcp.rs"
+
+[dependencies]
+reqwest = { version = "0.12", features = ["json"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+thiserror = "2.0"
+rmcp = { version = "0.1", features = ["server", "transport-io", "macros"] }
+dirs = "6.0"
+
+[dev-dependencies]
+tokio-test = "0.4"
