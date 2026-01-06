@@ -86,6 +86,8 @@ pub struct AuthorizeWithIpParam {
     pub member_id: String,
     #[schemars(description = "自定义 IP 地址（如 10.147.20.100）")]
     pub ip_address: String,
+    #[schemars(description = "成员名称（可选）")]
+    pub name: Option<String>,
 }
 
 // ============================================
@@ -259,6 +261,7 @@ impl McpServer {
         };
 
         let req = UpdateMemberRequest {
+            name: param.name.clone(),
             config: Some(UpdateMemberConfig {
                 authorized: Some(true),
                 ip_assignments: Some(vec![param.ip_address.clone()]),
