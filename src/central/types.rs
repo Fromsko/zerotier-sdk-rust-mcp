@@ -5,14 +5,18 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CentralStatus {
+    #[serde(default, deserialize_with = "null_default")]
     pub id: String,
-    #[serde(rename = "type")]
+    #[serde(rename = "type", default, deserialize_with = "null_default")]
     pub status_type: String,
     pub clock: i64,
+    #[serde(default, deserialize_with = "null_default")]
     pub version: String,
+    #[serde(default, deserialize_with = "null_default")]
     pub api_version: String,
     pub uptime: i64,
     pub user: Option<StatusUser>,
+    #[serde(default)]
     pub read_only_mode: bool,
     #[serde(default)]
     pub login_methods: HashMap<String, bool>,
@@ -22,10 +26,13 @@ pub struct CentralStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StatusUser {
+    #[serde(default, deserialize_with = "null_default")]
     pub id: String,
+    #[serde(default, deserialize_with = "null_default")]
     pub org_id: String,
+    #[serde(default, deserialize_with = "null_default")]
     pub display_name: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_default")]
     pub sms_number: String,
 }
 
@@ -33,13 +40,15 @@ pub struct StatusUser {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Network {
+    #[serde(default, deserialize_with = "null_default")]
     pub id: String,
     pub clock: i64,
     pub config: Option<NetworkConfig>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_default")]
     pub description: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_default")]
     pub rules_source: String,
+    #[serde(default, deserialize_with = "null_default")]
     pub owner_id: String,
     pub online_member_count: i32,
     pub authorized_member_count: i32,
@@ -54,7 +63,9 @@ pub struct Network {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NetworkConfig {
+    #[serde(default, deserialize_with = "null_default")]
     pub id: String,
+    #[serde(default, deserialize_with = "null_default")]
     pub name: String,
     pub private: bool,
     pub creation_time: i64,
@@ -109,19 +120,22 @@ pub struct Dns {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Member {
+    #[serde(default, deserialize_with = "null_default")]
     pub id: String,
+    #[serde(default, deserialize_with = "null_default")]
     pub network_id: String,
+    #[serde(default, deserialize_with = "null_default")]
     pub node_id: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_default")]
     pub name: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_default")]
     pub description: String,
     pub config: Option<MemberConfig>,
     pub last_online: i64,
     pub last_seen: i64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_default")]
     pub physical_address: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_default")]
     pub client_version: String,
     pub protocol_version: i32,
     pub supports_rules_engine: bool,
@@ -131,13 +145,16 @@ pub struct Member {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MemberConfig {
+    #[serde(default, deserialize_with = "null_default")]
     pub authorized: bool,
+    #[serde(default, deserialize_with = "null_default")]
     pub active_bridge: bool,
+    #[serde(default, deserialize_with = "null_default")]
     pub no_auto_assign_ips: bool,
     pub creation_time: i64,
     #[serde(default, deserialize_with = "null_default")]
     pub ip_assignments: Vec<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_default")]
     pub sso_exempt: bool,
 }
 

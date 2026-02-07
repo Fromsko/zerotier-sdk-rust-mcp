@@ -39,7 +39,7 @@ impl Client {
     /// 使用配置选项创建客户端
     pub fn with_options(opts: ClientOptions) -> Self {
         let base_url = opts.base_url.unwrap_or_else(|| "http://localhost:9993".to_string());
-        
+
         let token = opts.token
             .or_else(|| opts.token_file.and_then(|p| std::fs::read_to_string(p).ok()))
             .or_else(read_default_token)
@@ -48,7 +48,7 @@ impl Client {
             .to_string();
 
         let timeout = opts.timeout.unwrap_or(Duration::from_secs(10));
-        
+
         let http_client = reqwest::Client::builder()
             .timeout(timeout)
             .build()
@@ -73,18 +73,18 @@ impl Client {
         body: Option<&impl serde::Serialize>,
     ) -> Result<T, crate::client::Error> {
         let url = format!("{}{}", self.base_url, path);
-        
+
         let mut headers = HeaderMap::new();
         headers.insert("X-ZT1-AUTH", HeaderValue::from_str(&self.token).unwrap());
 
         let mut req = self.http_client.request(method, &url).headers(headers);
-        
+
         if let Some(b) = body {
             req = req.json(b);
         }
 
         let resp = req.send().await?;
-        
+
         if !resp.status().is_success() {
             let status = resp.status();
             let text = resp.text().await.unwrap_or_default();
@@ -101,12 +101,12 @@ impl Client {
         path: &str,
     ) -> Result<(), crate::client::Error> {
         let url = format!("{}{}", self.base_url, path);
-        
+
         let mut headers = HeaderMap::new();
         headers.insert("X-ZT1-AUTH", HeaderValue::from_str(&self.token).unwrap());
 
         let resp = self.http_client.request(method, &url).headers(headers).send().await?;
-        
+
         if !resp.status().is_success() {
             let status = resp.status();
             let text = resp.text().await.unwrap_or_default();
@@ -163,10 +163,10 @@ fn read_default_token() -> Option<String> {
 pub enum Error {
     #[error("HTTP request failed: {0}")]
     Http(#[from] reqwest::Error),
-    
+
     #[error("API error ({status}): {message}")]
     Api { status: u16, message: String },
-    
+
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
 }
