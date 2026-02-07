@@ -8,7 +8,7 @@ pub use types::*;
 pub use network::NetworkService;
 pub use member::MemberService;
 
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use std::time::Duration;
 
 /// ZeroTier Central API 客户端
@@ -36,7 +36,7 @@ impl Central {
     pub fn with_options(token: impl Into<String>, opts: CentralOptions) -> Self {
         let base_url = opts.base_url.unwrap_or_else(|| "https://api.zerotier.com/api/v1".to_string());
         let timeout = opts.timeout.unwrap_or(Duration::from_secs(30));
-        
+
         let http_client = reqwest::Client::builder()
             .timeout(timeout)
             .build()
@@ -57,25 +57,42 @@ impl Central {
         body: Option<&impl serde::Serialize>,
     ) -> Result<T, Error> {
         let url = format!("{}{}", self.base_url, path);
-        
+
         let mut headers = HeaderMap::new();
         headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("token {}", self.token)).unwrap());
 
         let mut req = self.http_client.request(method, &url).headers(headers);
-        
+
         if let Some(b) = body {
             req = req.json(b);
         }
 
         let resp = req.send().await?;
-        
-        if !resp.status().is_success() {
-            let status = resp.status();
+        let status = resp.status();
+
+        if !status.is_success() {
             let text = resp.text().await.unwrap_or_default();
             return Err(Error::Api { status: status.as_u16(), message: text });
         }
 
-        Ok(resp.json().await?)
+        let content_type = resp
+            .headers()
+            .get(CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_ascii_lowercase();
+
+        let text = resp.text().await.unwrap_or_default();
+
+        if text.trim().is_empty() {
+            return Err(Error::Api { status: status.as_u16(), message: "Empty response body".into() });
+        }
+
+        if !content_type.contains("json") {
+            return Err(Error::Api { status: status.as_u16(), message: text });
+        }
+
+        Ok(serde_json::from_str(&text)?)
     }
 
     /// 执行无返回值的 HTTP 请求
@@ -85,12 +102,12 @@ impl Central {
         path: &str,
     ) -> Result<(), Error> {
         let url = format!("{}{}", self.base_url, path);
-        
+
         let mut headers = HeaderMap::new();
         headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("token {}", self.token)).unwrap());
 
         let resp = self.http_client.request(method, &url).headers(headers).send().await?;
-        
+
         if !resp.status().is_success() {
             let status = resp.status();
             let text = resp.text().await.unwrap_or_default();
@@ -116,10 +133,10 @@ impl Central {
 pub enum Error {
     #[error("HTTP request failed: {0}")]
     Http(#[from] reqwest::Error),
-    
+
     #[error("API error ({status}): {message}")]
     Api { status: u16, message: String },
-    
+
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
 }

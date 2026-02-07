@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 
 /// Central API 状态
@@ -44,9 +44,9 @@ pub struct Network {
     pub online_member_count: i32,
     pub authorized_member_count: i32,
     pub total_member_count: i32,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_default")]
     pub capabilities_by_name: HashMap<String, i32>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_default")]
     pub tags_by_name: HashMap<String, i32>,
 }
 
@@ -62,9 +62,9 @@ pub struct NetworkConfig {
     pub enable_broadcast: bool,
     pub mtu: i32,
     pub multicast_limit: i32,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_default")]
     pub routes: Vec<Route>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_default")]
     pub ip_assignment_pools: Vec<IpAssignmentPool>,
     pub v4_assign_mode: Option<AssignMode>,
     pub v6_assign_mode: Option<AssignMode>,
@@ -101,7 +101,7 @@ pub struct AssignMode {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Dns {
     pub domain: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_default")]
     pub servers: Vec<String>,
 }
 
@@ -135,7 +135,7 @@ pub struct MemberConfig {
     pub active_bridge: bool,
     pub no_auto_assign_ips: bool,
     pub creation_time: i64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_default")]
     pub ip_assignments: Vec<String>,
     #[serde(default)]
     pub sso_exempt: bool,
@@ -161,9 +161,9 @@ pub struct CreateNetworkConfig {
     pub mtu: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub multicast_limit: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "null_default_opt")]
     pub routes: Option<Vec<Route>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "null_default_opt")]
     pub ip_assignment_pools: Option<Vec<IpAssignmentPool>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub v4_assign_mode: Option<AssignMode>,
@@ -194,6 +194,22 @@ pub struct UpdateMemberConfig {
     pub active_bridge: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub no_auto_assign_ips: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "null_default_opt")]
     pub ip_assignments: Option<Vec<String>>,
+}
+
+fn null_default<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+where
+    T: Default + Deserialize<'de>,
+    D: Deserializer<'de>,
+{
+    Option::<T>::deserialize(deserializer).map(|opt| opt.unwrap_or_default())
+}
+
+fn null_default_opt<'de, T, D>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: Deserializer<'de>,
+{
+    Option::<Option<T>>::deserialize(deserializer).map(|opt| opt.flatten())
 }
