@@ -1,6 +1,6 @@
 [package]
 name = "zerotier-sdk-rust-mcp"
-version = "0.1.9"
+version = "0.1.10"
 edition = "2021"
 description = "ZeroTier SDK for Rust with MCP support"
 license = "MIT"
